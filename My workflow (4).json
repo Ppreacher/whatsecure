@@ -1,0 +1,939 @@
+{
+  "name": "My workflow",
+  "nodes": [
+    {
+      "parameters": {
+        "jsCode": "const messages = $input.all().map((item) => item.json);\n\nconst classifiedMessages = messages.map((message) => {\n  const text = message?.messages[0]?.text?.body;\n  let intent = \"\";\n\n  // Check if text is URL\n  const urlRegex = /(https?:\\/\\/[^\\s]+)/g;\n  if (urlRegex.test(text)) {\n    intent = \"link\";\n  }\n\n  // Check if text is email\n  const emailRegex = /\\S+@\\S+\\.\\S+/;\n  if (emailRegex.test(text)) {\n    intent = \"email\";\n  }\n\n  // If not URL or email, assume it's a question\n  if (!intent) {\n    intent = \"question\";\n  }\n\n  return { ...message, intent };\n});\n\nreturn classifiedMessages;\n"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -960,
+        464
+      ],
+      "id": "888d570f-28a9-4a2d-a298-1fa38f1697c7",
+      "name": "Extract & Classify Input"
+    },
+    {
+      "parameters": {
+        "rules": {
+          "values": [
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "loose",
+                  "version": 2
+                },
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.intent }}",
+                    "rightValue": "=link",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    },
+                    "id": "0b2def16-195e-40f6-baec-d86e0e2eb10b"
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "Link Scan"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "loose",
+                  "version": 2
+                },
+                "conditions": [
+                  {
+                    "id": "fb1ed783-2a67-479b-9c98-14f2896108a4",
+                    "leftValue": "={{ $json.intent }}",
+                    "rightValue": "email",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals",
+                      "name": "filter.operator.equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "Email Breach"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "loose",
+                  "version": 2
+                },
+                "conditions": [
+                  {
+                    "id": "0d00aba4-63c1-4200-8fd9-81663cc3956d",
+                    "leftValue": "={{ $json.intent }}",
+                    "rightValue": "question",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals",
+                      "name": "filter.operator.equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "AI Question"
+            }
+          ]
+        },
+        "looseTypeValidation": true,
+        "options": {}
+      },
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 3.2,
+      "position": [
+        -704,
+        448
+      ],
+      "id": "df3819bc-7f55-49fc-98f1-793245434666",
+      "name": "Intent Router"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://www.virustotal.com/api/v3/urls",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "x-apikey",
+              "value": "bdecdce0843c7cfdf7d08f8798f45ca65ae291f37b9c4abd38be0dd8fce02c9a"
+            }
+          ]
+        },
+        "sendBody": true,
+        "contentType": "form-urlencoded",
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "url",
+              "value": "={{ $json.messages[0].text.body }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        0,
+        0
+      ],
+      "id": "3db66bd2-0f13-4c6b-9c42-4b3ac4dfd4d0",
+      "name": "VirusTotal Scan"
+    },
+    {
+      "parameters": {
+        "url": "=https://www.virustotal.com/api/v3/analyses/{{$json[\"data\"][\"id\"]}}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "x-apikey",
+              "value": "bdecdce0843c7cfdf7d08f8798f45ca65ae291f37b9c4abd38be0dd8fce02c9a"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        464,
+        0
+      ],
+      "id": "14271290-7616-4256-ac16-8f0a19e4bd21",
+      "name": "VirusTotal Get Results"
+    },
+    {
+      "parameters": {
+        "jsCode": "const inputData = $input.item.json;\n\nconst stats = inputData.data.attributes.stats;\nconst url = inputData.meta.url_info.url || \"N/A\";\n\n// Optional: safety classification\nconst isSafe = stats.malicious === 0 && stats.suspicious === 0;\n\nconst summary = `🛡️ *VirusTotal Scan Summary for:* ${url}\n- Malicious: ${stats.malicious}\n- Suspicious: ${stats.suspicious}\n- Harmless: ${stats.harmless}\n- Undetected: ${stats.undetected}\n- Timeout: ${stats.timeout}\n\n🔍 Verdict: ${isSafe ? \"No threats detected\" : \"⚠️ Potentially unsafe link\"}\n`;\n\nreturn [\n  {\n    json: {\n      summaryMessage: summary,\n      scanResult: stats,\n      url: url\n    }\n  }\n];\n"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        704,
+        0
+      ],
+      "id": "e9f26817-f337-4f0f-8212-91c42174ed28",
+      "name": "Format VT Summary"
+    },
+    {
+      "parameters": {
+        "url": "={{ $json.messages[0].text.body }}",
+        "additionalFields": {}
+      },
+      "type": "n8n-nodes-base.urlScanIo",
+      "typeVersion": 1,
+      "position": [
+        0,
+        176
+      ],
+      "id": "4b70f550-31be-4f77-9898-187e26194743",
+      "name": "Perform a scan",
+      "credentials": {
+        "urlScanIoApi": {
+          "id": "3bJj81jFixXMhU7Z",
+          "name": "urlscan.io account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "amount": 30
+      },
+      "type": "n8n-nodes-base.wait",
+      "typeVersion": 1.1,
+      "position": [
+        240,
+        176
+      ],
+      "id": "6698577c-7ea2-49a4-a6ec-7dd2bea7e104",
+      "name": "Wait",
+      "webhookId": "70250be8-f108-42c5-a67e-ace60e2db979"
+    },
+    {
+      "parameters": {
+        "amount": 20
+      },
+      "type": "n8n-nodes-base.wait",
+      "typeVersion": 1.1,
+      "position": [
+        240,
+        0
+      ],
+      "id": "5732ea9a-4c69-473e-a8f8-1322efe2f2b4",
+      "name": "Wait1",
+      "webhookId": "48ddfef2-d809-4663-8340-e552306bc42f"
+    },
+    {
+      "parameters": {
+        "jsCode": "const result = $json;\n\nconst task = result.task || {};\nconst page = result.page || {};\nconst verdicts = result.verdicts || {};\n\nreturn [{\n  json: {\n    urlscan_summary: `🌐 *urlscan.io Summary for:* ${task.url || 'unknown'}\n\n- Verdict: ${verdicts.overall?.score || 'unknown'}\n- Country: ${page.country || 'N/A'}\n- IP Address: ${page.ip || 'N/A'}\n- Page Title: ${page.title || 'N/A'}\n- Screenshot: ${task.screenshotURL || 'N/A'}\n\n📡 This scan helps detect phishing behavior, redirects, and suspicious script usage.`,\n    \n    verdict: verdicts.overall?.score || 'unknown',\n    screenshot_url: task.screenshotURL || null,\n    country: page.country || null,\n    ip: page.ip || null\n  }\n}];\n"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        704,
+        176
+      ],
+      "id": "a368f0f5-2b38-4a5c-a1a2-2d617f3f7cd2",
+      "name": "Format urlscan Summary"
+    },
+    {
+      "parameters": {
+        "operation": "get",
+        "scanId": "={{ $json.scanId }}"
+      },
+      "type": "n8n-nodes-base.urlScanIo",
+      "typeVersion": 1,
+      "position": [
+        448,
+        176
+      ],
+      "id": "e568589a-522d-4714-8f9b-6fd56ad2d9a5",
+      "name": "Get a scan",
+      "credentials": {
+        "urlScanIoApi": {
+          "id": "3bJj81jFixXMhU7Z",
+          "name": "urlscan.io account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "mode": "combine",
+        "combineBy": "combineByPosition",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.merge",
+      "typeVersion": 3.2,
+      "position": [
+        944,
+        112
+      ],
+      "id": "368438a9-ee47-44db-9546-fa5ba26551cb",
+      "name": "Merge"
+    },
+    {
+      "parameters": {
+        "url": "=https://haveibeenpwned.com/api/v3/breachedaccount/{{ $json.messages[0].text.body }} ",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "truncateResponse",
+              "value": "false"
+            }
+          ]
+        },
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "hibp-api-key",
+              "value": "0d76c98219db4a039366021719867573"
+            },
+            {
+              "name": "User-Agent",
+              "value": "n8n-workflow"
+            },
+            {
+              "name": "Accept",
+              "value": "application/json"
+            }
+          ]
+        },
+        "options": {
+          "response": {
+            "response": {
+              "fullResponse": true,
+              "neverError": true,
+              "responseFormat": "json"
+            }
+          }
+        }
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        240,
+        416
+      ],
+      "id": "fe6e4849-3215-4f0c-bb7f-af41c5bdb52e",
+      "name": "HTTP Request"
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "7fb218a7-e2fe-4ed5-b3e7-3372a243b3c6",
+              "name": "prompt",
+              "value": "=The following is a scan result from VirusTotal and urlscan.io. Analyze the data and give a friendly risk report and well organized for the user, including any advice if dangerous.  {{ $json.summaryMessage }}  {{ $json.urlscan_summary }}",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        1152,
+        112
+      ],
+      "id": "b6f96ecb-a6b8-43f4-8e3a-4ac85177f589",
+      "name": "Edit Fields"
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "={{ $json.prompt }}",
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 2.1,
+      "position": [
+        2112,
+        368
+      ],
+      "id": "9eced120-6302-4f57-9bff-e4691fd000d3",
+      "name": "AI Agent"
+    },
+    {
+      "parameters": {
+        "sessionIdType": "customKey",
+        "sessionKey": "=$input.first().json.contacts[0].wa_id",
+        "contextWindowLength": 10
+      },
+      "type": "@n8n/n8n-nodes-langchain.memoryBufferWindow",
+      "typeVersion": 1.3,
+      "position": [
+        2208,
+        752
+      ],
+      "id": "2b7472d9-5622-4ca2-9410-2347cba8f575",
+      "name": "Simple Memory"
+    },
+    {
+      "parameters": {
+        "documentId": {
+          "__rl": true,
+          "value": "1gFjd40WR_BjbrulsUFspIGsqLVdxWo2R6a80fG8xc4k",
+          "mode": "list",
+          "cachedResultName": "WhatSecure",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1gFjd40WR_BjbrulsUFspIGsqLVdxWo2R6a80fG8xc4k/edit?usp=drivesdk"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "gid=0",
+          "mode": "list",
+          "cachedResultName": "Sheet1",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1gFjd40WR_BjbrulsUFspIGsqLVdxWo2R6a80fG8xc4k/edit#gid=0"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleSheetsTool",
+      "typeVersion": 4.6,
+      "position": [
+        2368,
+        624
+      ],
+      "id": "cfa20047-a9e5-43b6-8e97-24d0e30e43af",
+      "name": "Get row(s) in sheet in Google Sheets",
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "hvZs1LhrTSN5wHX8",
+          "name": "Google Sheets account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "40dd4c1e-24c3-40e4-af64-fa6f084a0baa",
+              "name": "prompt",
+              "value": "=The user asked the following cybersecurity-related question. Respond in a clear, friendly way:  \"{{ $json.messages[0].text.body }}\"",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        1152,
+        784
+      ],
+      "id": "e98f935a-26de-4c3e-91cc-7fcf936c838e",
+      "name": "Edit Fields2"
+    },
+    {
+      "parameters": {
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.lmChatGoogleGemini",
+      "typeVersion": 1,
+      "position": [
+        2048,
+        624
+      ],
+      "id": "c78da4ba-ada8-4370-88ee-02ca9cbb917c",
+      "name": "Google Gemini Chat Model",
+      "credentials": {
+        "googlePalmApi": {
+          "id": "h8g55i6Jtp06AZXj",
+          "name": "Google Gemini(PaLM) Api account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "cyber-chatbot",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        -1232,
+        176
+      ],
+      "id": "6ccb84bc-5251-46e3-9f1f-638743515108",
+      "name": "Webhook",
+      "webhookId": "fd5a8dff-182c-49c6-a1ac-a53110b18631"
+    },
+    {
+      "parameters": {
+        "respondWith": "allIncomingItems",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.4,
+      "position": [
+        2784,
+        112
+      ],
+      "id": "27cd4b5a-d04a-408f-ab32-8b83059eaa86",
+      "name": "Respond to Webhook"
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "f439176e-38be-4dec-a689-8fbe84dbdabf",
+              "name": "email",
+              "value": "={{ $(\"Extract & Classify Input\").item.json.messages[0].text.body }}    ",
+              "type": "string"
+            },
+            {
+              "id": "76a6e94d-8ba2-4de4-b1d8-6627e2bffb3f",
+              "name": "breaches",
+              "value": "={{ $json.body[0].Name }} and {{ $json.body[1].Name }}",
+              "type": "string"
+            },
+            {
+              "id": "34e77060-7a57-41b2-8769-97bf83d7be6d",
+              "name": "breachMessage",
+              "value": "={{ \"Your email has been breached in the following service(s): \" + $json.body[0].Name + \"\\nDate: \" + $json.body[0].BreachDate + \"\\n\\n\" +  $json.body[0].Description}}\n\n{{ \"Your email has been breached in the following service(s): \" + $json.body[1].Name + \"\\nDate: \" + $json.body[0].BreachDate + \"\\n\\n\" +  $json.body[1].Description}}",
+              "type": "string"
+            },
+            {
+              "id": "35b65165-7688-4a48-8520-9c8758dd945f",
+              "name": "prompt",
+              "value": "={{ \n  \"The user submitted this email for breach checking.\\n\\n\" +\n  \"Email: \" + $(\"Extract & Classify Input\").item.json.messages[0].text.body + \"\\n\\n\" +\n  \"Your email has been breached in the following service(s): \" + $json.body[0].Name + \"\\nDate: \" + $json.body[0].BreachDate + \"\\n\\n\" +  $json.body[0].Description\n}}\nand\n{{ \n  \"The user submitted this email for breach checking.\\n\\n\" +\n  \"Email: \" + $(\"Extract & Classify Input\").item.json.messages[0].text.body + \"\\n\\n\" +\n  \"Your email has been breached in the following service(s): \" + $json.body[1].Name + \"\\nDate: \" + $json.body[1].BreachDate + \"\\n\\n\" +  $json.body[1].Description\n}}\ngive a clean report.",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        1152,
+        560
+      ],
+      "id": "549335d5-c93b-44a9-a24a-1961f6e4aa08",
+      "name": "Format Breach Summary"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "32eeb5ec-7461-4b9c-a2bc-c36925f4b16d",
+              "leftValue": "={{$json[\"statusCode\"]}}",
+              "rightValue": "404",
+              "operator": {
+                "type": "string",
+                "operation": "equals",
+                "name": "filter.operator.equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "looseTypeValidation": true,
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        736,
+        432
+      ],
+      "id": "ae39a29a-c5a4-4478-9e68-ea3f64eb0cb2",
+      "name": "If"
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "f439176e-38be-4dec-a689-8fbe84dbdabf",
+              "name": "email",
+              "value": "={{ $(\"Extract & Classify Input\").item.json.messages[0].text.body }} ",
+              "type": "string"
+            },
+            {
+              "id": "76a6e94d-8ba2-4de4-b1d8-6627e2bffb3f",
+              "name": "breaches",
+              "value": "=None",
+              "type": "string"
+            },
+            {
+              "id": "34e77060-7a57-41b2-8769-97bf83d7be6d",
+              "name": "breachMessage",
+              "value": "=Your email is safe — no breaches found.",
+              "type": "string"
+            },
+            {
+              "id": "35b65165-7688-4a48-8520-9c8758dd945f",
+              "name": "prompt",
+              "value": "={{ \n  \"The user submitted this email for breach checking. Reply to the user that his/her email is safe.\\n\\n\" +\n  \"Email: \" + $(\"Extract & Classify Input\").item.json.messages[0].text.body + \"\\n\\n\" +\n  \"Result: No breaches found.\" \n}}\n",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        1152,
+        336
+      ],
+      "id": "54c75b06-4ac5-4dc5-a9ef-821e7e25d6c0",
+      "name": "Format Breach Summary1"
+    },
+    {
+      "parameters": {
+        "operation": "send",
+        "phoneNumberId": "791874330667062",
+        "recipientPhoneNumber": "={{ $('WhatsApp Trigger').item.json.contacts[0].wa_id }}",
+        "textBody": "={{ $json.output }}",
+        "additionalFields": {}
+      },
+      "type": "n8n-nodes-base.whatsApp",
+      "typeVersion": 1,
+      "position": [
+        2752,
+        368
+      ],
+      "id": "87efac0a-ab75-4d7c-9ee4-3dbfbf94911a",
+      "name": "Send message",
+      "webhookId": "5e8246eb-23cf-429c-a550-14612b3ded12",
+      "credentials": {
+        "whatsAppApi": {
+          "id": "mZnAh9KDdyiMuda5",
+          "name": "WhatsApp account 2"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "updates": [
+          "messages"
+        ],
+        "options": {}
+      },
+      "type": "n8n-nodes-base.whatsAppTrigger",
+      "typeVersion": 1,
+      "position": [
+        -1232,
+        464
+      ],
+      "id": "3311f683-87f5-49e7-ab58-a6e8b089d904",
+      "name": "WhatsApp Trigger",
+      "webhookId": "10a937ec-c8cd-4107-8bfe-d6d40bace7b3",
+      "credentials": {
+        "whatsAppTriggerApi": {
+          "id": "AaZ775HgToEdFttT",
+          "name": "WhatsApp OAuth account 2"
+        }
+      }
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Extract & Classify Input": {
+      "main": [
+        [
+          {
+            "node": "Intent Router",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Intent Router": {
+      "main": [
+        [
+          {
+            "node": "Perform a scan",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "VirusTotal Scan",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "HTTP Request",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Edit Fields2",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "VirusTotal Scan": {
+      "main": [
+        [
+          {
+            "node": "Wait1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "VirusTotal Get Results": {
+      "main": [
+        [
+          {
+            "node": "Format VT Summary",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Perform a scan": {
+      "main": [
+        [
+          {
+            "node": "Wait",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Wait": {
+      "main": [
+        [
+          {
+            "node": "Get a scan",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Wait1": {
+      "main": [
+        [
+          {
+            "node": "VirusTotal Get Results",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get a scan": {
+      "main": [
+        [
+          {
+            "node": "Format urlscan Summary",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Format VT Summary": {
+      "main": [
+        [
+          {
+            "node": "Merge",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Format urlscan Summary": {
+      "main": [
+        [
+          {
+            "node": "Merge",
+            "type": "main",
+            "index": 1
+          }
+        ]
+      ]
+    },
+    "HTTP Request": {
+      "main": [
+        [
+          {
+            "node": "If",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Merge": {
+      "main": [
+        [
+          {
+            "node": "Edit Fields",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Simple Memory": {
+      "ai_memory": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "ai_memory",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get row(s) in sheet in Google Sheets": {
+      "ai_tool": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Edit Fields": {
+      "main": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Edit Fields2": {
+      "main": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Google Gemini Chat Model": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "AI Agent": {
+      "main": [
+        [
+          {
+            "node": "Send message",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Webhook": {
+      "main": [
+        []
+      ]
+    },
+    "Format Breach Summary": {
+      "main": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "If": {
+      "main": [
+        [
+          {
+            "node": "Format Breach Summary1",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Format Breach Summary",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Format Breach Summary1": {
+      "main": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Send message": {
+      "main": [
+        []
+      ]
+    },
+    "WhatsApp Trigger": {
+      "main": [
+        [
+          {
+            "node": "Extract & Classify Input",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": true,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "versionId": "4c95142c-d565-447d-9347-601a3d99f6ac",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "9a0f0ca61d54895e9c750113437ee0c34da7051cf30827485364b1eadca4999f"
+  },
+  "id": "MF9sOQt4uv5OvL8M",
+  "tags": []
+}
