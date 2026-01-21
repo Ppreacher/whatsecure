@@ -115,7 +115,7 @@
           "parameters": [
             {
               "name": "x-apikey",
-              "value": "bdecdce0843c7cfdf7d08f8798f45ca65ae291f37b9c4abd38be0dd8fce02c9a"
+              "value": "XXXXXXXXXXX"
             }
           ]
         },
@@ -148,7 +148,7 @@
           "parameters": [
             {
               "name": "x-apikey",
-              "value": "bdecdce0843c7cfdf7d08f8798f45ca65ae291f37b9c4abd38be0dd8fce02c9a"
+              "value": "xxxxxxxxxxx"
             }
           ]
         },
@@ -191,7 +191,7 @@
       "name": "Perform a scan",
       "credentials": {
         "urlScanIoApi": {
-          "id": "3bJj81jFixXMhU7Z",
+          "id": "xxxxxxx",
           "name": "urlscan.io account"
         }
       }
@@ -222,7 +222,7 @@
       ],
       "id": "5732ea9a-4c69-473e-a8f8-1322efe2f2b4",
       "name": "Wait1",
-      "webhookId": "48ddfef2-d809-4663-8340-e552306bc42f"
+      "webhookId": "xxxxxxxxxxxxx"
     },
     {
       "parameters": {
@@ -252,7 +252,7 @@
       "name": "Get a scan",
       "credentials": {
         "urlScanIoApi": {
-          "id": "3bJj81jFixXMhU7Z",
+          "id": "xxxxxxxxxxx",
           "name": "urlscan.io account"
         }
       }
@@ -289,7 +289,7 @@
           "parameters": [
             {
               "name": "hibp-api-key",
-              "value": "0d76c98219db4a039366021719867573"
+              "value": "xxxxxxxxxx"
             },
             {
               "name": "User-Agent",
@@ -599,7 +599,7 @@
     {
       "parameters": {
         "operation": "send",
-        "phoneNumberId": "791874330667062",
+        "phoneNumberId": "07xxxxxxx",
         "recipientPhoneNumber": "={{ $('WhatsApp Trigger').item.json.contacts[0].wa_id }}",
         "textBody": "={{ $json.output }}",
         "additionalFields": {}
@@ -635,7 +635,7 @@
       ],
       "id": "3311f683-87f5-49e7-ab58-a6e8b089d904",
       "name": "WhatsApp Trigger",
-      "webhookId": "10a937ec-c8cd-4107-8bfe-d6d40bace7b3",
+      "webhookId": "xxxxxxxxxxxx",
       "credentials": {
         "whatsAppTriggerApi": {
           "id": "AaZ775HgToEdFttT",
